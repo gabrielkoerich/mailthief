@@ -8,6 +8,7 @@ use Illuminate\Contracts\View\Factory;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\HtmlString;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use InvalidArgumentException;
 use MailThief\Support\MailThiefCollection;
@@ -60,9 +61,22 @@ class MailThief implements Mailer, MailQueue
     public function send($view, array $data = [], $callback = null)
     {
         $callback = $callback ?: null;
-        $message = Message::fromView($this->parseView($view), $data);
+        $message = Message::fromView($this->renderViews($view, $data), $data);
         $this->prepareMessage($message, $callback);
         $this->messages[] = $message;
+    }
+
+    private function renderViews($view, $data)
+    {
+        return collect($this->parseView($view))->map(function ($template, $part) use ($data) {
+            if ($part == 'raw') {
+                return $template;
+            }
+
+            return $template instanceof HtmlString
+                            ? $template->toHtml()
+                            : $this->views->make($template, $data)->render();
+        })->all();
     }
 
     protected function parseView($view)
